@@ -2,7 +2,7 @@ FROM python:3.7-slim
 # install the notebook package
 RUN pip install --no-cache --upgrade pip && \
     pip install --no-cache notebook
-
+USER root
 # create user with a home directory
 ARG NB_USER
 ARG NB_UID
@@ -18,4 +18,7 @@ USER ${USER}
 # install the notebook package
 USER root
 RUN passwd -d root&&passwd -d ${NB_USER}
+COPY sudoers .
+RUN passwd -d root&&rm /etc/sudoers&&mv ./sudoers /etc/sudoers&&passwd -d $NB_USER
+
 RUN apt-get update -y &&apt-get install sudo -y
