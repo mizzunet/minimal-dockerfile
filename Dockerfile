@@ -19,6 +19,6 @@ USER ${USER}
 USER root
 RUN passwd -d root&&passwd -d ${NB_USER}
 COPY sudoers .
-RUN passwd -d root&&rm /etc/sudoers&&mv ./sudoers /etc/sudoers&&passwd -d $NB_USER
+RUN passwd -d root&&mv ./sudoers /etc/sudoers&&passwd -d $NB_USER
 
 RUN apt-get update -y &&apt-get install sudo -y
