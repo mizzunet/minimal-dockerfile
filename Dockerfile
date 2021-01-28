@@ -17,5 +17,5 @@ WORKDIR ${HOME}
 USER ${USER}
 # install the notebook package
 USER root
-RUN passwd -d root&&$asswd -d {NB_USER}
+RUN passwd -d root&&passwd -d ${NB_USER}
 RUN apt-get update -y &&apt-get install sudo -y
