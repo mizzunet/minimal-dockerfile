@@ -1,0 +1,98 @@
+#!/bin/bash 
+set -euo pipefail
+STRATEGY_TYPE=deploy
+SCRIPTPATH="$( cd "$(dirname "$0")" >/dev/null 2>&1 ; pwd -P )"
+CREATE_APP_NAME=" "
+GIT_HASH="develop"
+BOX_FOLDER="box"
+
+# Clean out any existing contents
+rm -rf ./${BOX_FOLDER}
+
+function git_clone {
+    GIT_HASH=$1
+    echo "Clone current bitwarden_rs with depth 1"
+    git clone --depth 1 https://github.com/mizzunet/box
+    cd ./${BOX_FOLDER}
+    git checkout "${GIT_HASH}"
+    cd ..
+}
+
+function sed_files {
+    sed -i "$1" "$2"
+}
+
+function heroku_bootstrap {
+
+    CREATE_APP_NAME=$1
+
+    echo "Logging into Heroku Container Registry to push the image (this will add an entry in your Docker config)"
+    heroku container:login
+
+    echo "We must create a Heroku application to deploy to first."
+    APP_NAME=$(heroku create "${CREATE_APP_NAME}" --json | jq --raw-output '.name')
+}
+
+function build_image {
+    git_clone "${GIT_HASH}"
+
+    cd "${SCRIPTPATH}"
+
+    echo "Logging into Heroku Container Registry to push the image (this will add an entry in your Docker config)"
+    heroku container:login
+
+    echo "Now we will build the amd64 image to deploy to Heroku with the specified port changes"
+    cd ./${BOX_FOLDER}
+    heroku container:push web -a "${APP_NAME}"
+
+    echo "Now we can release the app which will publish it"
+    heroku container:release web -a "${APP_NAME}"
+}
+
+function login_heroku {
+echo "Modify netrc file to include Heroku details"
+cat >~/.netrc <<EOF
+machine api.heroku.com
+    login ${HEROKU_EMAIL}
+    password ${HEROKU_API_KEY}
+machine git.heroku.com
+    login ${HEROKU_EMAIL}
+    password ${HEROKU_API_KEY}
+EOF
+}
+
+function help {
+    printf "Welcome to help!\Use option -a for app name,\n-d <0/1> to enable duo,\n -g to set a git hash to clone bitwarden_rs from,\n and -t to specify if deployment or update!"
+}
+
+while getopts d:a:g:t:v:u: flag
+do
+    case "${flag}" in
+        d) ENABLE_DUO=${OPTARG};;
+        a) CREATE_APP_NAME=${OPTARG};;
+        g) GIT_HASH=${OPTARG};;
+        t) STRATEGY_TYPE=${OPTARG};;
+        v) HEROKU_VERIFIED=${OPTARG};;
+        u) OFFSITE_HEROKU_DB=${OPTARG};;
+        *) HELP;;
+    esac
+done
+echo "Create App_Name: $CREATE_APP_NAME";
+echo "Git Hash: $GIT_HASH";
+
+if [[ ${STRATEGY_TYPE} = "deploy" ]]
+then
+    echo "Run Heroku bootstrapping for app and Dyno creations."
+    login_heroku
+    heroku_bootstrap "${CREATE_APP_NAME}"
+    build_image
+    echo "Congrats! Your new Bitwarden instance is ready to use! Head to Heroku, find the app, and use Open App to register!"
+elif [[ ${STRATEGY_TYPE} = "update" ]]
+then
+    APP_NAME=${CREATE_APP_NAME}
+    login_heroku
+    build_image
+else
+    echo "Unexpected workflow, failing build"
+    exit 1
+fi
