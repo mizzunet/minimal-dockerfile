@@ -15,4 +15,4 @@ FROM base as FINAL
 RUN mkdir -pv /app/data/uploads
 WORKDIR /app
 COPY --from=builder /build/passwdbox .
-CMD [ "/app/passwdbox", "-use-dotenv=false", "&", "ngrok", " http", "3000" ]
+CMD [ "/app/passwdbox", "-use-dotenv=false", "&", "ngrok", "http", "3000" ]
