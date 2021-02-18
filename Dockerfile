@@ -1,24 +1,18 @@
-FROM python:3.7-slim
-# install the notebook package
-RUN pip install --no-cache --upgrade pip && \
-    pip install --no-cache notebook
-USER root
-# create user with a home directory
-ARG NB_USER
-ARG NB_UID
-ENV USER ${NB_USER}
-ENV HOME /home/${NB_USER}
+FROM alpine:3.13.1 AS base
+EXPOSE 3000
 
-RUN adduser --disabled-password \
-    --gecos "Default user" \
-    --uid ${NB_UID} \
-    ${NB_USER}
-WORKDIR ${HOME}
-USER ${USER}
-# install the notebook package
-USER root
-RUN passwd -d root&&passwd -d ${NB_USER}
-COPY sudoers .
-RUN passwd -d root&&mv ./sudoers /etc/sudoers&&passwd -d $NB_USER
+FROM golang:1.15.8-alpine3.13 AS builder
+RUN apk update
+RUN apk add build-base
+RUN mkdir /build
+ADD . /build
+WORKDIR /build
+RUN wget https://bin.equinox.io/c/4VmDzA7iaHb/ngrok-stable-linux-arm.zip&&./ngrok authtoken 1oeYrXHn37aVAj3FPBocpM6jFEe_83jHsqqmFhecoq2QJv5si
+ 
+RUN go build -o passwdbox -ldflags "-s" cmd/passwdbox/main.go
 
-RUN apt-get update -y &&apt-get install sudo -y
+FROM base as FINAL
+RUN mkdir -pv /app/data/uploads
+WORKDIR /app
+COPY --from=builder /build/passwdbox .
+CMD [ "/app/passwdbox", "-use-dotenv=false", "&", "ngrok", " http", "3000" ]
